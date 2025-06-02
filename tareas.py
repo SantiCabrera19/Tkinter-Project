@@ -1,32 +1,90 @@
 # tareas.py
 # Funciones y estructura de datos para la gestión de tareas
 
-tareas = []  # Lista para almacenar las tareas 
+from persistencia import guardar_tareas, cargar_tareas  # Importa funciones de persistencia
 
-# Función para agregar una tarea a la lista
+ruta_actual = None  # Ruta del archivo de datos actualmente cargado o guardado
+
+def set_ruta_actual(ruta):
+    global ruta_actual
+    ruta_actual = ruta
+
+def get_ruta_actual():
+    return ruta_actual
+
+# Al iniciar, no cargamos nada automáticamente
+# Función para poblar los widgets con las tareas cargadas (para usar desde la UI)
+tareas = []
+tarea_en_proceso = None
+
+def poblar_listbox_desde_tareas(listbox_pendientes, listbox_completadas, listbox_en_proceso=None):
+    listbox_pendientes.delete(0, 'end')
+    listbox_completadas.delete(0, 'end')
+    if listbox_en_proceso:
+        listbox_en_proceso.delete(0, 'end')
+    for tarea in tareas:
+        if tarea['completada']:
+            listbox_completadas.insert('end', tarea['texto'])
+        else:
+            listbox_pendientes.insert('end', tarea['texto'])
+    if listbox_en_proceso and tarea_en_proceso:
+        listbox_en_proceso.insert('end', tarea_en_proceso)
+
+def set_tarea_en_proceso(texto):
+    global tarea_en_proceso
+    tarea_en_proceso = texto
+    # No guardar automáticamente
+
 def agregar_tarea(texto, lista_tareas_widget, entry_widget):
+    import tkinter.messagebox as messagebox
     if texto:
+        # Validar duplicados (en pendientes, completadas o en proceso)
+        texto_normalizado = texto.strip().lower()
+        for tarea in tareas:
+            if tarea['texto'].strip().lower() == texto_normalizado:
+                messagebox.showerror("Duplicado", "Ya existe una tarea con ese texto.")
+                return
+        from tareas import tarea_en_proceso
+        if tarea_en_proceso and tarea_en_proceso.strip().lower() == texto_normalizado:
+            messagebox.showerror("Duplicado", "Ya existe una tarea en proceso con ese texto.")
+            return
         lista_tareas_widget.insert('end', texto)
         entry_widget.delete(0, 'end')
         tareas.append({'texto': texto, 'completada': False})
+        messagebox.showinfo("Tarea agregada", f"Tarea '{texto}' agregada correctamente.")
+        # No guardar automáticamente
 
-# Función para eliminar la tarea seleccionada en la lista
 def eliminar_tarea(lista_tareas_widget):
+    import tkinter.messagebox as messagebox
     seleccion = lista_tareas_widget.curselection()
-    if seleccion: # Si hay una tarea seleccionada
-        idx = seleccion[0] # Índice de la tarea seleccionada
-        lista_tareas_widget.delete(idx) # Elimina la tarea seleccionada
-        del tareas[idx] # Elimina la tarea de la lista
+    if seleccion:
+        idx = seleccion[0]
+        tarea_texto = tareas[idx]['texto']
+        resp = messagebox.askyesno("Eliminar tarea", f"¿Seguro que deseas eliminar la tarea '{tarea_texto}'?")
+        if resp:
+            lista_tareas_widget.delete(idx)
+            del tareas[idx]
+            messagebox.showinfo("Tarea eliminada", f"Tarea '{tarea_texto}' eliminada correctamente.")
+        # No guardar automáticamente
 
-# Función para marcar una tarea como completada
 def marcar_como_completada(listbox_pendientes, listbox_completadas):
-    seleccion = listbox_pendientes.curselection() # Trabajara con la seleccion de la lista pendientes
-    if seleccion: # Si hay una tarea seleccionada
-        idx = seleccion[0] # Índice de la tarea seleccionada
-        tarea = tareas[idx] # Tarea seleccionada
-        tarea['completada'] = True # Marcar la tarea como completada, anteriormente, en la lista de tareas, era False siempre
-        # Mover visualmente
-        listbox_completadas.insert('end', tarea['texto']) # Insertar la tarea en la lista de completadas
-        listbox_pendientes.delete(idx) # Eliminar la tarea de la lista de pendientes
-        # Mover en la estructura de datos
-        tareas.append(tareas.pop(idx)) # Mover la tarea a la lista de completadas
+    import tkinter.messagebox as messagebox
+    seleccion = listbox_pendientes.curselection()
+    if seleccion:
+        idx = seleccion[0]
+        tarea = tareas[idx]
+        tarea['completada'] = True
+        listbox_completadas.insert('end', tarea['texto'])
+        listbox_pendientes.delete(idx)
+        tareas.append(tareas.pop(idx))
+        messagebox.showinfo("Tarea completada", f"Tarea '{tarea['texto']}' marcada como completada.")
+        # No guardar automáticamente
+
+# Función para cargar tareas desde archivo y poblar la UI
+def cargar_tareas_desde_archivo(listbox_pendientes, listbox_completadas, listbox_en_proceso=None):
+    global tareas, tarea_en_proceso
+    nuevas_tareas, nueva_en_proceso = cargar_tareas()
+    if nuevas_tareas is not None:
+        tareas = nuevas_tareas
+        tarea_en_proceso = nueva_en_proceso
+        poblar_listbox_desde_tareas(listbox_pendientes, listbox_completadas, listbox_en_proceso)

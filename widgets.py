@@ -12,14 +12,24 @@ def crear_boton(ventana, texto, comando):
     return boton
 
 # Función para crear un Listbox con label opcional
-def crear_listbox_con_label(ventana, texto_label=None):
+def crear_listbox_con_label(ventana, texto_label=None, use_scroll=False, width=25, height=10):
     label = None
     if texto_label:
         label = tk.Label(ventana, text=texto_label)
         aplicar_estilo_label(label)
-    listbox = tk.Listbox(ventana)
+    frame = tk.Frame(ventana)
+    if use_scroll:
+        scrollbar = tk.Scrollbar(frame, orient='vertical')
+        listbox = tk.Listbox(frame, yscrollcommand=scrollbar.set, width=width, height=height)
+        scrollbar.config(command=listbox.yview)
+        listbox.pack(side=tk.LEFT)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+    else:
+        listbox = tk.Listbox(frame, width=width, height=height)
+        aplicar_estilo_listbox(listbox)
+        listbox.pack()
     aplicar_estilo_listbox(listbox)
-    return label, listbox
+    return label, frame, listbox
 
 # Función para actualizar el label con el contador
 def actualizar_label_con_contador(label, texto_base, cantidad):
@@ -61,9 +71,19 @@ def crear_boton_pomodoro(parent, texto, comando):
     aplicar_estilo_boton(boton)
     return boton
 
-def crear_listbox_en_proceso(ventana, texto_label="En proceso"):
+def crear_listbox_en_proceso(ventana, texto_label="En proceso", use_scroll=False, width=30, height=3):
     label = tk.Label(ventana, text=texto_label)
     aplicar_estilo_label(label)
-    listbox = tk.Listbox(ventana, height=3, width=30)
+    frame = tk.Frame(ventana)
+    if use_scroll:
+        scrollbar = tk.Scrollbar(frame, orient='vertical')
+        listbox = tk.Listbox(frame, width=width, height=height, yscrollcommand=scrollbar.set)
+        scrollbar.config(command=listbox.yview)
+        listbox.pack(side=tk.LEFT)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+    else:
+        listbox = tk.Listbox(frame, width=width, height=height)
+        aplicar_estilo_listbox(listbox)
+        listbox.pack()
     aplicar_estilo_listbox(listbox)
-    return label, listbox
+    return label, frame, listbox

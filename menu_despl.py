@@ -2,8 +2,15 @@ import tkinter as tk
 
 # Componente de barra de menú modular
 class MenuDesplegable:
-    def __init__(self, parent, on_modo_claro, on_modo_oscuro): # parent es el widget padre, on_modo_claro es el callback para el modo claro, on_modo_oscuro es el callback para el modo oscuro
+    def __init__(self, parent, on_modo_claro, on_modo_oscuro, on_guardar=None, on_cargar=None):
         self.menubar = tk.Menu(parent) # menú principal
+        # Menú Archivo
+        self.menu_archivo = tk.Menu(self.menubar, tearoff=0)
+        if on_guardar:
+            self.menu_archivo.add_command(label="Guardar datos", command=on_guardar)
+        if on_cargar:
+            self.menu_archivo.add_command(label="Cargar datos", command=on_cargar)
+        self.menubar.add_cascade(label="Archivo", menu=self.menu_archivo)
         # Menú Configuración
         self.menu_config = tk.Menu(self.menubar, tearoff=0) # menú de configuración, tearoff=0 es para que no se pueda deslizar
         # Submenú Modo

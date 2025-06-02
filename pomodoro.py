@@ -1,7 +1,7 @@
 import tkinter as tk # importamos tkinter
 import tkinter.messagebox as messagebox # importamos messagebox
 from widgets import crear_entry_con_placeholder, crear_listbox_con_label, crear_boton, actualizar_label_con_contador, crear_listbox_en_proceso # importamos los widgets
-from tareas import agregar_tarea, eliminar_tarea, marcar_como_completada # importamos las tareas
+from tareas import agregar_tarea, eliminar_tarea, marcar_como_completada, poblar_listbox_desde_tareas, set_tarea_en_proceso, cargar_tareas_desde_archivo, get_ruta_actual, set_ruta_actual, tareas, tarea_en_proceso # importamos las tareas y funciones de ruta
 from estilos import PADDING_X, PADDING_Y, MODO_CLARO, MODO_OSCURO, aplicar_tema, aplicar_tema_columna_izquierda # importamos los estilos
 from reloj import Pomodoro # importamos el reloj
 from menu_despl import MenuDesplegable # importamos el menú desplegable
@@ -14,6 +14,7 @@ modo_actual = {'tema': MODO_CLARO} # modo actual, por defecto es claro
 ventana = tk.Tk() # creamos la ventana
 ventana.title('Pomodoro🍅') # título de la ventana
 ventana.geometry('1000x700') # tamaño de la ventana
+ventana.resizable(False, False) # No permitir maximizar ni redimensionar
 
 # Frame horizontal para Entry y botón de agregar, centrado y ancho limitado
 frame_entry = tk.Frame(ventana, bg=modo_actual['tema']['bg'])
@@ -32,11 +33,10 @@ frame_izq = tk.Frame(ventana, bg=modo_actual['tema']['bg'])
 frame_izq.grid(row=2, column=0, rowspan=10, sticky='n', padx=(30, 0), pady=(20, 0))
 
 # Label y listbox de pendientes en frame_izq
-label_pend, listbox_pendientes = crear_listbox_con_label(frame_izq, 'Pendientes')
+label_pend, frame_pend, listbox_pendientes = crear_listbox_con_label(frame_izq, 'Pendientes', use_scroll=True)
 label_pend.config(bg=modo_actual['tema']['bg'], fg=modo_actual['tema']['label_fg'])
 label_pend.pack(pady=(0, 5))
-listbox_pendientes.config(bg=modo_actual['tema']['listbox_bg'], fg=modo_actual['tema']['listbox_fg'])
-listbox_pendientes.pack(pady=(0, 10))
+frame_pend.pack(pady=(0, 10))  # No expand ni fill
 
 # Frame para los botones debajo de pendientes
 def asociar_tarea_en_proceso(): # función para asociar una tarea a la tarea en proceso
@@ -56,6 +56,7 @@ def asociar_tarea_en_proceso(): # función para asociar una tarea a la tarea en 
                 return
             listbox_en_proceso.delete(0, 'end')
         listbox_en_proceso.insert('end', tarea)
+        set_tarea_en_proceso(tarea)  # Persistir tarea en proceso
 
 frame_botones_pendientes = tk.Frame(frame_izq, bg=modo_actual['tema']['bg'])
 frame_botones_pendientes.pack(pady=(0, 10))
@@ -88,9 +89,9 @@ else:
     label_logo = None # si no existe la imagen del logo entonces se asigna None
 
 # Columna derecha: Completadas
-label_comp, listbox_completadas = crear_listbox_con_label(ventana, 'Completadas')
-label_comp.grid(row=2, column=1, padx=PADDING_X, pady=(PADDING_Y, 0)) # Grid para el label (acomodamos el label arriba del listbox)
-listbox_completadas.grid(row=3, column=1, padx=PADDING_X, pady=(0, PADDING_Y)) # Grid para el listbox
+label_comp, frame_comp, listbox_completadas = crear_listbox_con_label(ventana, 'Completadas', use_scroll=True)
+label_comp.grid(row=2, column=1, padx=PADDING_X, pady=(PADDING_Y, 0), sticky='n')
+frame_comp.grid(row=3, column=1, padx=PADDING_X, pady=(0, PADDING_Y), sticky='n')
 
 # Configuramos las columnas para que se expandan cuando se expanda la ventana
 ventana.grid_columnconfigure(0, weight=1) # Configuramos la columna 0 para que se expanda
@@ -141,6 +142,7 @@ def on_pomodoro_finish():
                     listbox_pendientes.delete(idx) # eliminamos la tarea de pendientes
                     listbox_completadas.insert('end', tarea) # insertamos la tarea en completadas
                     listbox_en_proceso.delete(0, 'end') # eliminamos la tarea en proceso
+                    set_tarea_en_proceso(None)  # Limpiar tarea en proceso
                     actualizar_contadores() # actualizamos los contadores
                     break # salimos del bucle
         elif respuesta is False: # si no queremos agregar la tarea a completadas entonces
@@ -158,36 +160,36 @@ def on_pomodoro_finish():
             pomodoro.agregar_tiempo(5) # Agregamos 5 minutos de descanso
         # Si es None (cancel), no hace nada
 
-pomodoro = Pomodoro(ventana, on_finish=on_pomodoro_finish) # creamos el pomodoro
-pomodoro.grid(row=4, column=1, rowspan=2, padx=(PADDING_X, PADDING_X), pady=(PADDING_Y, 0), sticky='n') # grid para el pomodoro
-
 # Después de crear el Pomodoro
-label_en_proceso, listbox_en_proceso = crear_listbox_en_proceso(ventana)
+label_en_proceso, frame_en_proceso, listbox_en_proceso = crear_listbox_en_proceso(ventana, use_scroll=True, width=30, height=3)
 label_en_proceso.grid(row=6, column=1, padx=0, pady=(PADDING_Y, 0), sticky='n')
-listbox_en_proceso.config(height=3, width=25)
-listbox_en_proceso.grid(row=7, column=1, padx=0, pady=(0, PADDING_Y), sticky='n')
+frame_en_proceso.grid(row=7, column=1, padx=0, pady=(0, 0), sticky='n')
+frame_en_proceso.grid_propagate(False)
+frame_en_proceso.config(width=220, height=70)  # Ajustar si querés más o menos ancho/alto
+listbox_en_proceso.config(width=30, height=3)
 
 # Frame y botones debajo de 'En proceso'
 frame_botones_en_proceso = tk.Frame(ventana)
 frame_botones_en_proceso.grid(row=8, column=1, padx=0, pady=(0, PADDING_Y), sticky='n')
 
 # Función para terminar la tarea en proceso
-def terminar_tarea_en_proceso(): # usamos self para referirnos a la clase
-    if listbox_en_proceso.size() > 0: # si hay una tarea en proceso entonces
-        tarea = listbox_en_proceso.get(0) # tarea es la tarea en proceso
-        # Buscar y mover la tarea de pendientes a completadas (esto es para que se pueda mover la tarea de pendientes a completadas)
-        for idx in range(listbox_pendientes.size()): # recorremos la lista de pendientes
-            if listbox_pendientes.get(idx) == tarea: # si la tarea de pendientes es igual a la tarea entonces
-                listbox_pendientes.delete(idx) # eliminamos la tarea de pendientes
-                listbox_completadas.insert('end', tarea) # insertamos la tarea en completadas
-                listbox_en_proceso.delete(0, 'end') # eliminamos la tarea en proceso
-                actualizar_contadores() # actualizamos los contadores
-                break # salimos del bucle
+def terminar_tarea_en_proceso():
+    if listbox_en_proceso.size() > 0:
+        tarea = listbox_en_proceso.get(0)
+        for idx in range(listbox_pendientes.size()):
+            if listbox_pendientes.get(idx) == tarea:
+                listbox_pendientes.delete(idx)
+                listbox_completadas.insert('end', tarea)
+                listbox_en_proceso.delete(0, 'end')
+                set_tarea_en_proceso(None)  # Limpiar tarea en proceso
+                actualizar_contadores()
+                break
 
 # Función para quitar la tarea en proceso
-def quitar_tarea_en_proceso(): # usamos self para referirnos a la clase
-    if listbox_en_proceso.size() > 0: # si hay una tarea en proceso entonces
-        listbox_en_proceso.delete(0, 'end') # eliminamos la tarea en proceso
+def quitar_tarea_en_proceso():
+    if listbox_en_proceso.size() > 0:
+        listbox_en_proceso.delete(0, 'end')
+        set_tarea_en_proceso(None)  # Limpiar tarea en proceso
 
 # Botones debajo de 'En proceso'
 boton_terminar = crear_boton(frame_botones_en_proceso, 'Terminar tarea', terminar_tarea_en_proceso) # pack para el botón de terminar tarea en proceso
@@ -197,8 +199,20 @@ boton_terminar.pack(side=tk.TOP, fill=tk.X, pady=2, anchor='center') # pack para
 boton_quitar = crear_boton(frame_botones_en_proceso, 'Quitar de en proceso', quitar_tarea_en_proceso) # pack para el botón de quitar tarea en proceso
 boton_quitar.pack(side=tk.TOP, fill=tk.X, pady=2, anchor='center') # pack para el botón de quitar tarea en proceso
 
-# Estado global de tema
-widgets_tema = {}
+pomodoro = Pomodoro(ventana, on_finish=on_pomodoro_finish)
+pomodoro.grid(row=4, column=1, rowspan=2, padx=(PADDING_X, PADDING_X), pady=(PADDING_Y, 0), sticky='n')
+
+# ... ahora definir widgets_tema ...
+widgets_tema = {
+    'ventana': ventana,
+    'labels': [label_pend, label_comp, label_en_proceso],
+    'listboxes': [listbox_pendientes, listbox_completadas, listbox_en_proceso],
+    'botones': [boton_eliminar, boton_completar, boton_asociar, boton_terminar, boton_quitar],
+    'frames': [frame_botones_pendientes, frame_botones_en_proceso],
+    'pomodoro_frame': pomodoro.bg_frame,
+    'pomodoro_label': pomodoro.label,
+}
+aplicar_tema(widgets_tema, MODO_CLARO)
 
 def set_modo(modo, revertible=True):
     tema = MODO_CLARO if modo == 'claro' else MODO_OSCURO
@@ -227,19 +241,60 @@ def set_modo_claro():
 def set_modo_oscuro():
     set_modo('oscuro')
 
-# ... después de crear todos los widgets principales ...
-widgets_tema = {
-    'ventana': ventana,
-    'labels': [label_pend, label_comp, label_en_proceso],
-    'listboxes': [listbox_pendientes, listbox_completadas, listbox_en_proceso],
-    'botones': [boton_eliminar, boton_completar, boton_asociar, boton_terminar, boton_quitar],
-    'frames': [frame_botones_pendientes, frame_botones_en_proceso],
-    'pomodoro_frame': pomodoro.bg_frame,
-    'pomodoro_label': pomodoro.label,
-}
-aplicar_tema(widgets_tema, MODO_CLARO)
+# --- Callbacks para el menú (deben estar antes de crear el menú) ---
+def on_guardar_datos():
+    from persistencia import guardar_tareas
+    import tkinter.messagebox as messagebox
+    resp = messagebox.askyesno("Guardar datos", "¿Deseas guardar los datos actuales?")
+    if resp:
+        try:
+            guardar_tareas(tareas, tarea_en_proceso)  # Pide ruta al usuario
+            messagebox.showinfo("Guardado", "Datos guardados correctamente.")
+        except Exception as e:
+            messagebox.showerror("Error al guardar", str(e))
+    # Si elige No, no hace nada
 
-menu = MenuDesplegable(ventana, set_modo_claro, set_modo_oscuro)
+def on_cargar_datos():
+    import tkinter.messagebox as messagebox
+    try:
+        cargar_tareas_desde_archivo(listbox_pendientes, listbox_completadas, listbox_en_proceso)
+        messagebox.showinfo("Cargado", "Datos cargados correctamente.")
+    except Exception as e:
+        messagebox.showerror("Error al cargar", str(e))
+
+# --- Fin callbacks menú ---
+
+# Ahora crear el menú, después de definir todos los callbacks y funciones necesarias
+menu = MenuDesplegable(
+    ventana,
+    set_modo_claro,
+    set_modo_oscuro,
+    on_guardar=on_guardar_datos,
+    on_cargar=on_cargar_datos
+)
 ventana.config(menu=menu.get_menubar())
+
+poblar_listbox_desde_tareas(listbox_pendientes, listbox_completadas, listbox_en_proceso)  # Pobla los listbox con las tareas guardadas
+
+# Handler de cierre de ventana con confirmación y opciones de guardado
+def on_cerrar():
+    resp = messagebox.askyesnocancel(
+        "¿Deseas salir?",
+        "¿Deseas guardar antes de salir? (Sí: guardar y salir, No: salir sin guardar, Cancelar: no salir)",
+        icon='question'
+    )
+    if resp is True:
+        from persistencia import guardar_tareas
+        try:
+            guardar_tareas(tareas, tarea_en_proceso)
+        except Exception as e:
+            messagebox.showerror("Error al guardar", str(e))
+        ventana.destroy()
+    elif resp is False:
+        ventana.destroy()
+    else:
+        return
+
+ventana.protocol("WM_DELETE_WINDOW", on_cerrar)
 
 ventana.mainloop()
