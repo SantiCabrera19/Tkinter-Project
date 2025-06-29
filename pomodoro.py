@@ -209,7 +209,7 @@ widgets_tema = {
     'listboxes': [listbox_pendientes, listbox_completadas, listbox_en_proceso],
     'botones': [boton_eliminar, boton_completar, boton_asociar, boton_terminar, boton_quitar],
     'frames': [frame_botones_pendientes, frame_botones_en_proceso],
-    'pomodoro_frame': pomodoro.bg_frame,
+    'pomodoro_frame': pomodoro,
     'pomodoro_label': pomodoro.label,
 }
 aplicar_tema(widgets_tema, MODO_CLARO)
